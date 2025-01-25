@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment Tracker Form</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    /* Hide non-table elements during printing */
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #history-table, #history-table * {
+        visibility: visible;
+      }
+      #history-table {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+      }
+    }
+  </style>
+  <script>
+    // Function to get the current date in Fiji's timezone (GMT+12)
+    function getFijiDate() {
+      const date = new Date();
+      // Fiji is UTC+12 (no daylight saving time)
+      const fijiOffset = +12 * 60; // Fiji's offset in minutes
+      const utcTime = date.getTime() + date.getTimezoneOffset() * 60000; // Convert local time to UTC
+      const fijiTime = new Date(utcTime + fijiOffset * 60000); // Add Fiji's offset to UTC
+      return fijiTime.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+    }
+
+    // Function to initialize the job number
+    function initializeJobNumber() {
+      let jobNumber = localStorage.getItem('jobNumber');
+      if (!jobNumber) {
+        jobNumber = 5200; // Default starting job number
+        localStorage.setItem('jobNumber', jobNumber); // Save to localStorage
+      }
+      document.getElementById('job-number').value = jobNumber;
+    }
+
+    // Function to increment the job number
+    function incrementJobNumber() {
+      let jobNumber = localStorage.getItem('jobNumber');
+      if (!jobNumber) {
+        jobNumber = 5200; // Default starting job number
+      } else {
+        jobNumber = parseInt(jobNumber) + 1; // Increment by 1
+      }
+      localStorage.setItem('jobNumber', jobNumber); // Save updated job number
+      document.getElementById('job-number').value = jobNumber;
+    }
+
+    // Array to store history of entries
+    let history = JSON.parse(localStorage.getItem('history')) || [];
+
+    // Function to format time in AM/PM
+    function formatTime(time) {
+      const [hours, minutes] = time.split(':');
+      const parsedHours = parseInt(hours);
+      const ampm = parsedHours >= 12 ? 'PM' : 'AM';
+      const formattedHours = parsedHours % 12 || 12;
+      return `${formattedHours}:${minutes} ${ampm}`;
+    }
+
+    // Function to toggle payment status
+    function togglePaymentStatus(index) {
+      history[index].paid = !history[index].paid; // Toggle status
+      localStorage.setItem('history', JSON.stringify(history)); // Update localStorage
+      renderHistory(); // Re-render history table
+    }
+
+    // Function to calculate total paid and not paid amounts
+    function calculateTotals() {
+      let paidAmount = 0;
+      let notPaidAmount = 0;
+      history.forEach(entry => {
+        if (entry.paid) {
+          paidAmount += parseFloat(entry.amount);
+        } else {
+          notPaidAmount += parseFloat(entry.amount);
+        }
+      });
+      document.getElementById('paid-amount').textContent = paidAmount.toFixed(2);
+      document.getElementById('not-paid-amount').textContent = notPaidAmount.toFixed(2);
+    }
+
+    // Function to filter entries based on payment status
+    function filterEntries(status) {
+      if (status === 'all') {
+        return history;
+      } else if (status === 'paid') {
+        return history.filter(entry => entry.paid);
+      } else if (status === 'not-paid') {
+        return history.filter(entry => !entry.paid);
+      }
+      return history;
+    }
+
+    // Function to search entries by date, vehicle number, or job number
+    function searchEntries(query) {
+      return history.filter(entry =>
+        entry.date.toLowerCase().includes(query) ||
+        entry.vehicleNumber.toLowerCase().includes(query) ||
+        entry.jobNumber.toString().toLowerCase().includes(query)
+      );
+    }
+
+    // Function to render history in the table
+    function renderHistory() {
+      const filterStatus = document.getElementById('filter-status').value;
+      const searchQuery = document.getElementById('search-bar').value.toLowerCase();
+      let filteredEntries = filterEntries(filterStatus);
+
+      if (searchQuery) {
+        filteredEntries = searchEntries(searchQuery);
+      }
+
+      const historyTable = document.getElementById('history-table');
+      historyTable.innerHTML = `
+        <thead>
+          <tr class="bg-gray-200">
+            <th class="px-4 py-2">Date</th>
+            <th class="px-4 py-2">Vehicle Number</th>
+            <th class="px-4 py-2">Job Number</th>
+            <th class="px-4 py-2">Time In</th>
+            <th class="px-4 py-2">Time Out</th>
+            <th class="px-4 py-2">Service</th>
+            <th class="px-4 py-2">Amount</th>
+            <th class="px-4 py-2">Payment Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filteredEntries.map((entry, index) => `
+            <tr class="border-b" id="row-${index}" onclick="loadEntryIntoForm(${index})">
+              <td class="px-4 py-2">${entry.date}</td>
+              <td class="px-4 py-2">${entry.vehicleNumber}</td>
+              <td class="px-4 py-2">${entry.jobNumber}</td>
+              <td class="px-4 py-2">${formatTime(entry.timeIn)}</td>
+              <td class="px-4 py-2">${formatTime(entry.timeOut)}</td>
+              <td class="px-4 py-2">${entry.service}</td>
+              <td class="px-4 py-2">${entry.amount}</td>
+              <td class="px-4 py-2">
+                <button
+                  onclick="togglePaymentStatus(${index})"
+                  class="px-4 py-1 rounded ${
+                    entry.paid ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'
+                  } text-white"
+                >
+                  ${entry.paid ? 'Paid' : 'Not Paid'}
+                </button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      `;
+      calculateTotals(); // Update totals
+    }
+
+    // Function to load an entry into the form for editing
+    function loadEntryIntoForm(index) {
+      const entry = history[index];
+      document.getElementById('date').value = entry.date;
+      document.getElementById('vehicle-number').value = entry.vehicleNumber;
+      document.getElementById('job-number').value = entry.jobNumber;
+      document.getElementById('time-in').value = entry.timeIn;
+      document.getElementById('time-out').value = entry.timeOut;
+      document.getElementById('service').value = entry.service;
+      document.getElementById('amount').value = entry.amount;
+      document.getElementById('edit-index').value = index; // Store the index of the entry being edited
+      document.getElementById('submit-button').textContent = 'Update'; // Change button text to "Update"
+    }
+
+    // Function to save an edited entry
+    function saveEditedEntry(index) {
+      const formData = {
+        date: document.getElementById('date').value,
+        vehicleNumber: document.getElementById('vehicle-number').value,
+        jobNumber: document.getElementById('job-number').value,
+        timeIn: document.getElementById('time-in').value,
+        timeOut: document.getElementById('time-out').value,
+        service: document.getElementById('service').value,
+        amount: document.getElementById('amount').value,
+        paid: history[index].paid, // Preserve payment status
+      };
+      history[index] = formData; // Update the entry in the history array
+      localStorage.setItem('history', JSON.stringify(history)); // Update localStorage
+      renderHistory(); // Re-render history table
+      resetForm(); // Reset the form
+    }
+
+    // Function to reset the form
+    function resetForm() {
+      document.getElementById('payment-form').reset();
+      document.getElementById('edit-index').value = ''; // Clear the edit index
+      document.getElementById('submit-button').textContent = 'Submit'; // Reset button text to "Submit"
+      document.getElementById('date').value = getFijiDate(); // Reset date to current date
+      initializeJobNumber(); // Reset job number
+    }
+
+    // Function to reset the entire history
+    function resetHistory() {
+      if (confirm('Are you sure you want to clear the entire history? This cannot be undone.')) {
+        history = []; // Clear the history array
+        localStorage.removeItem('history'); // Remove history from localStorage
+        localStorage.removeItem('jobNumber'); // Reset job number
+        initializeJobNumber(); // Reinitialize job number
+        renderHistory(); // Re-render history table
+      }
+    }
+
+    // Function to print the history table
+    function printHistoryTable() {
+      window.print(); // Trigger the print dialog
+    }
+
+    // Set the default value of the date input to Fiji's current date
+    window.onload = function () {
+      document.getElementById('date').value = getFijiDate(); // Set Fiji date
+      initializeJobNumber(); // Initialize job number
+      renderHistory(); // Render history on page load
+    };
+
+    // Handle form submission
+    function handleSubmit(event) {
+      event.preventDefault(); // Prevent form from submitting
+
+      const editIndex = document.getElementById('edit-index').value;
+
+      if (editIndex !== '') {
+        // If editing an existing entry
+        saveEditedEntry(editIndex);
+      } else {
+        // If adding a new entry
+        const formData = {
+          date: document.getElementById('date').value,
+          vehicleNumber: document.getElementById('vehicle-number').value,
+          jobNumber: document.getElementById('job-number').value,
+          timeIn: document.getElementById('time-in').value,
+          timeOut: document.getElementById('time-out').value,
+          service: document.getElementById('service').value,
+          amount: document.getElementById('amount').value,
+          paid: false, // Default payment status is "Not Paid"
+        };
+        history.push(formData); // Add new entry to history
+        localStorage.setItem('history', JSON.stringify(history)); // Update localStorage
+        incrementJobNumber(); // Increment job number
+        resetForm(); // Reset the form
+        renderHistory(); // Re-render history table
+      }
+    }
+
+    // Function to enable edit mode
+    function enableEditMode() {
+      // Highlight rows to indicate they are clickable for editing
+      const rows = document.querySelectorAll('#history-table tbody tr');
+      rows.forEach(row => {
+        row.classList.add('cursor-pointer', 'hover:bg-gray-100');
+      });
+      alert('Click on a row in the history table to edit it.');
+    }
+  </script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+  <div class="w-full max-w-6xl">
+    <!-- Form Section -->
+    <div class="bg-white p-8 rounded-lg shadow-lg mb-8">
+      <h2 class="text-2xl font-bold mb-6 text-center">Payment Tracker</h2>
+      <form id="payment-form" onsubmit="handleSubmit(event)">
+        <!-- Hidden input to store the index of the entry being edited -->
+        <input type="hidden" id="edit-index" value="" />
+
+        <!-- Date -->
+        <div class="mb-4">
+          <label class="block text-gray-700 text-sm font-bold mb-2" for="date">
+            Date
+          </label>
+          <input
+            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            id="date"
+            type="date"
+          />
+        </div>
+
+        <!-- Vehicle Number -->
+        <div class="mb-4">
+          <label class="block text-gray-700 text-sm font-bold mb-2" for="vehicle-number">
+            Vehicle Number
+          </label>
+          <input
+            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            id="vehicle-number"
+            type="text"
+            placeholder="Enter vehicle number"
+            required
+          />
+        </div>
+
+        <!-- Job Number -->
+        <div class="mb-4">
+          <label class="block text-gray-700 text-sm font-bold mb-2" for="job-number">
+            Job Number
+          </label>
+          <input
+            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 bg-gray-100 leading-tight focus:outline-none focus:shadow-outline"
+            id="job-number"
+            type="number"
+            readonly
+          />
+        </div>
+
+        <!-- Time In -->
+        <div class="mb-4">
+          <label class="block text-gray-700 text-sm font-bold mb-2" for="time-in">
+            Time In
+          </label>
+          <input
+            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            id="time-in"
+            type="time"
+            required
+          />
+        </div>
+
+        <!-- Time Out -->
+        <div class="mb-4">
+          <label class="block text-gray-700 text-sm font-bold mb-2" for="time-out">
+            Time Out
+          </label>
+          <input
+            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            id="time-out"
+            type="time"
+            required
+          />
+        </div>
+
+        <!-- Service -->
+        <div class="mb-4">
+          <label class="block text-gray-700 text-sm font-bold mb-2" for="service">
+            Service
+          </label>
+          <textarea
+            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            id="service"
+            rows="4"
+            placeholder="Enter service details"
+            required
+          ></textarea>
+        </div>
+
+        <!-- Amount -->
+        <div class="mb-6">
+          <label class="block text-gray-700 text-sm font-bold mb-2" for="amount">
+            Amount
+          </label>
+          <input
+            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            id="amount"
+            type="number"
+            placeholder="Enter amount"
+            required
+          />
+        </div>
+
+        <!-- Submit/Update, Edit Entry, and Reset History Buttons -->
+        <div class="flex items-center justify-between">
+          <div>
+            <button
+              id="submit-button"
+              class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+              type="submit"
+            >
+              Submit
+            </button>
+            <button
+              type="button"
+              onclick="enableEditMode()"
+              class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline ml-4"
+            >
+              Edit Entry
+            </button>
+            <button
+              onclick="resetHistory()"
+              class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline ml-4"
+            >
+              Reset History
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <!-- Totals, Search Bar, and Filter Dropdown -->
+    <div class="bg-white p-8 rounded-lg shadow-lg mb-8">
+      <h2 class="text-2xl font-bold mb-6 text-center">Totals</h2>
+      <div class="flex justify-between mb-4">
+        <div>
+          <span class="font-bold">Paid Amount:</span>
+          <span id="paid-amount" class="text-green-500">0.00</span>
+        </div>
+        <div>
+          <span class="font-bold">Not Paid Amount:</span>
+          <span id="not-paid-amount" class="text-red-500">0.00</span>
+        </div>
+      </div>
+      <div class="flex justify-between mb-4">
+        <div>
+          <label for="search-bar" class="mr-2">Search:</label>
+          <input
+            type="text"
+            id="search-bar"
+            oninput="renderHistory()"
+            placeholder="Search by Date, Vehicle #, or Job #"
+            class="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          />
+        </div>
+        <div>
+          <label for="filter-status" class="mr-2">Filter:</label>
+          <select
+            id="filter-status"
+            onchange="renderHistory()"
+            class="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          >
+            <option value="all">All Entries</option>
+            <option value="paid">Paid Entries</option>
+            <option value="not-paid">Not Paid Entries</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- History Table and Print Button -->
+    <div class="bg-white p-8 rounded-lg shadow-lg">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold">History</h2>
+        <button
+          onclick="printHistoryTable()"
+          class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+        >
+          Print History
+        </button>
+      </div>
+      <table id="history-table" class="w-full text-left">
+        <!-- Table content will be dynamically rendered here -->
+      </table>
+    </div>
+  </div>
+</body>
+  </html>
