@@ -33,28 +33,6 @@
       return fijiTime.toISOString().split('T')[0]; // Format as YYYY-MM-DD
     }
 
-    // Function to initialize the job number
-    function initializeJobNumber() {
-      let jobNumber = localStorage.getItem('jobNumber');
-      if (!jobNumber) {
-        jobNumber = 5200; // Default starting job number
-        localStorage.setItem('jobNumber', jobNumber); // Save to localStorage
-      }
-      document.getElementById('job-number').value = jobNumber;
-    }
-
-    // Function to increment the job number
-    function incrementJobNumber() {
-      let jobNumber = localStorage.getItem('jobNumber');
-      if (!jobNumber) {
-        jobNumber = 5200; // Default starting job number
-      } else {
-        jobNumber = parseInt(jobNumber) + 1; // Increment by 1
-      }
-      localStorage.setItem('jobNumber', jobNumber); // Save updated job number
-      document.getElementById('job-number').value = jobNumber;
-    }
-
     // Array to store history of entries
     let history = JSON.parse(localStorage.getItem('history')) || [];
 
@@ -199,7 +177,6 @@
       document.getElementById('edit-index').value = ''; // Clear the edit index
       document.getElementById('submit-button').textContent = 'Submit'; // Reset button text to "Submit"
       document.getElementById('date').value = getFijiDate(); // Reset date to current date
-      initializeJobNumber(); // Reset job number
     }
 
     // Function to reset the entire history
@@ -207,8 +184,6 @@
       if (confirm('Are you sure you want to clear the entire history? This cannot be undone.')) {
         history = []; // Clear the history array
         localStorage.removeItem('history'); // Remove history from localStorage
-        localStorage.removeItem('jobNumber'); // Reset job number
-        initializeJobNumber(); // Reinitialize job number
         renderHistory(); // Re-render history table
       }
     }
@@ -221,7 +196,6 @@
     // Set the default value of the date input to Fiji's current date
     window.onload = function () {
       document.getElementById('date').value = getFijiDate(); // Set Fiji date
-      initializeJobNumber(); // Initialize job number
       renderHistory(); // Render history on page load
     };
 
@@ -248,7 +222,6 @@
         };
         history.push(formData); // Add new entry to history
         localStorage.setItem('history', JSON.stringify(history)); // Update localStorage
-        incrementJobNumber(); // Increment job number
         resetForm(); // Reset the form
         renderHistory(); // Re-render history table
       }
@@ -306,10 +279,11 @@
             Job Number
           </label>
           <input
-            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 bg-gray-100 leading-tight focus:outline-none focus:shadow-outline"
+            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
             id="job-number"
             type="number"
-            readonly
+            placeholder="Enter job number"
+            required
           />
         </div>
 
@@ -451,4 +425,4 @@
     </div>
   </div>
 </body>
-  </html>
+</html>
